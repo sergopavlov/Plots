@@ -17,11 +17,17 @@ namespace SFML.NET
         }
         class simpleWindow
         {
+            XYPlane plane = new XYPlane(-5, 5, -5, 5);
             public void Run()
             {
-                var window = new SFML.Graphics.RenderWindow(new Window.VideoMode(800, 800), "Kartinka");
+                ContextSettings settings = new();
+                settings.AntialiasingLevel = 2;
+                var window = new SFML.Graphics.RenderWindow(new Window.VideoMode(800, 800), "Kartinka", Styles.Close, settings);
                 window.KeyPressed += Window_KeyPressed;
-                XYPlane plane = new XYPlane(-5, 5, -5, 5);
+                window.MouseButtonPressed += MouseButton_Pressed;
+                window.MouseButtonReleased += MouseButton_Released;
+                window.MouseMoved += Mouse_Moved;
+                window.MouseWheelScrolled += Mouse_Scrolled;
                 AbobaBox box = new();
                 box.AddAboba(1, 2, 2, 1, 2);
                 box.AddAboba(1, -2, 2.4f, 2, 3);
@@ -58,6 +64,51 @@ namespace SFML.NET
                     window.Close();
                 }
             }
+            private bool LeftMouseClicked { get; set; } = false;
+            private void MouseButton_Pressed(object sender, SFML.Window.MouseButtonEventArgs e)
+            {
+                if (e.Button.HasFlag(Mouse.Button.Left))
+                {
+                    LeftMouseClicked = true;
+                }
+
+            }
+            private void MouseButton_Released(object sender, SFML.Window.MouseButtonEventArgs e)
+            {
+                if (e.Button.HasFlag(Mouse.Button.Left))
+                {
+                    LeftMouseClicked = false;
+                }
+
+            }
+            private void Mouse_Scrolled(object sender, SFML.Window.MouseWheelScrollEventArgs e)
+            {
+                if (e.Wheel.HasFlag(Mouse.Wheel.VerticalWheel))
+                {
+                    plane.Rescale(1 + e.Delta * 0.2f);                    
+                }
+            }
+            private int mouseX { get; set; }
+            private int mouseY { get; set; }
+            private void Mouse_Moved(object sender, SFML.Window.MouseMoveEventArgs e)
+            {
+                var window = (SFML.Window.Window)sender;
+                if (LeftMouseClicked)
+                {
+                    int dx = -e.X + mouseX;
+                    int dy = e.Y - mouseY;
+                    plane.MoveX(dx, window.Size);
+                    plane.MoveY(dy, window.Size);
+                    mouseX = e.X;
+                    mouseY = e.Y;
+                }
+                else
+                {
+                    mouseX = e.X;
+                    mouseY = e.Y;
+                }
+            }
+
         }
 
         class XYPlane : Transformable, Drawable
@@ -67,7 +118,31 @@ namespace SFML.NET
             public float ymin { get; private set; }
             public float ymax { get; private set; }
             List<EquationDrawer> equations = new();
-
+            public void MoveX(int pixels, Vector2u size)
+            {
+                float dx = pixels * (xmax - xmin) / (size.X);
+                xmin += dx;
+                xmax += dx;
+            }
+            public void MoveY(int pixels, Vector2u size)
+            {
+                float dy = pixels * (ymax - ymin) / (size.Y);
+                ymin += dy;
+                ymax += dy;
+            }
+            public void Rescale(float k)
+            {
+                float hx = (xmax - xmin) * (k - 1) / 2;
+                float hy = (ymax - ymin) * (k - 1) / 2;
+                xmin -= hx;
+                xmax += hx;
+                ymin -= hy;
+                ymax += hy;
+                foreach (var item in equations)
+                {
+                    item.h *= k;
+                }
+            }
             public XYPlane(float xmin, float xmax, float ymin, float ymax)
             {
                 this.xmin = xmin;
@@ -75,7 +150,6 @@ namespace SFML.NET
                 this.ymin = ymin;
                 this.ymax = ymax;
             }
-
             public void AddCurve(EquationDrawer item) => equations.Add(item);
             public void Draw(RenderTarget target, RenderStates states)
             {
@@ -101,7 +175,7 @@ namespace SFML.NET
                 this.color = color;
             }
 
-            double h { get; set; }
+            public double h { get; set; }
             Color color { get; set; }
             public void Draw(RenderTarget target, RenderStates states)
             {
